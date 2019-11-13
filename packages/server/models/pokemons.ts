@@ -65,7 +65,6 @@ export function byType(args: {
       : A.filter(p => p.types.map(t => t.toLowerCase()).indexOf(type.toLowerCase()) >= 0);
 
   const sliceByAfter: (as: Pokemon[]) => Pokemon[] =
-    // filter only if q is defined
     after === undefined
       ? identity
       : as =>

@@ -1,90 +1,196 @@
-import React, {Component} from 'react';
+import React from 'react';
+import { Table, Form, Input, Button, AutoComplete } from 'antd';
+import { gql } from 'apollo-boost';
+import { Query } from '@apollo/react-components';
 
-import { Table, Divider, Tag } from 'antd';
 
-class PokemonTable extends Component {
-  constructor(props){
-    super(props);
-
-    this.data = [
-      {
-        key: '1',
-        name: 'John Brown',
-        age: 32,
-        address: 'New York No. 1 Lake Park',
-        tags: ['nice', 'developer'],
-      },
-      {
-        key: '2',
-        name: 'Jim Green',
-        age: 42,
-        address: 'London No. 1 Lake Park',
-        tags: ['loser'],
-      },
-      {
-        key: '3',
-        name: 'Joe Black',
-        age: 32,
-        address: 'Sidney No. 1 Lake Park',
-        tags: ['cool', 'teacher'],
-      },
-    ];
-
-    this.columns = [
-      {
-        title: 'Name',
-        dataIndex: 'name',
-        key: 'name',
-        render: text => <a>{text}</a>,
-      },
-      {
-        title: 'Age',
-        dataIndex: 'age',
-        key: 'age',
-      },
-      {
-        title: 'Address',
-        dataIndex: 'address',
-        key: 'address',
-      },
-      {
-        title: 'Tags',
-        key: 'tags',
-        dataIndex: 'tags',
-        render: tags => (
-          <span>
-            {tags.map(tag => {
-              let color = tag.length > 5 ? 'geekblue' : 'green';
-              if (tag === 'loser') {
-                color = 'volcano';
-              }
-              return (
-                <Tag color={color} key={tag}>
-                  {tag.toUpperCase()}
-                </Tag>
-              );
-            })}
-          </span>
-        ),
-      },
-      {
-        title: 'Action',
-        key: 'action',
-        render: (text, record) => (
-          <span>
-            <a>Invite {record.name}</a>
-            <Divider type="vertical" />
-            <a>Delete</a>
-          </span>
-        ),
-      },
-    ];
+const POKEMONS = gql`
+  query Pokemons($name: String, $limit: Int, $after: ID) {
+    pokemons (q: $name, limit: $limit, after: $after) {
+      edges {
+        cursor
+        node {
+          name
+          classification
+          types
+        }
+      }
+      pageInfo{
+        hasNextPage,
+        endCursor
+      }
+    }
   }
-  render(){
-    return (
-      <Table columns={this.columns} dataSource={this.data} />
+`;
+
+const POKEMONS_BY_TYPE = gql`
+  query Pokemons($type: String!, $limit: Int, $after: ID) {
+    pokemonsByType  (type: $type, limit: $limit, after: $after) {
+      edges {
+        cursor
+        node {
+          name
+          classification
+          types
+        }
+      }
+      pageInfo{
+        hasNextPage,
+        endCursor
+      }
+    }
+  }
+`;
+
+const columns = [
+  {
+    title: 'Id',
+    key: 'cursor',
+    dataIndex: 'cursor',
+  },
+  {
+    title: 'Name',
+    key: 'name',
+    dataIndex: 'node.name',
+  },
+  {
+    title: 'Image',
+    key: 'image',
+    dataIndex: 'cursor',
+    render: (text, record) => (
+      <img src={`https://raw.githubusercontent.com/PokeAPI/sprites/master/sprites/pokemon/${parseInt(text, 10)}.png`}></img>
+    )
+  },
+  {
+    title: 'Classification',
+    key: 'classification',
+    dataIndex: 'node.classification',
+  }
+]
+export default class PokemonTable extends React.Component {
+
+  state = {
+    query: POKEMONS,
+    resultAdapter: (data) => data.pokemons,
+    search: {
+      name: '',
+      type: '',
+      limit: 10,
+    }
+  }
+
+  constructor(props) {
+    super(props)
+  }
+
+
+  byName() {
+    return event => this.setState({
+      query: POKEMONS,
+      resultAdapter: (data) => data.pokemons,
+      search: {
+        name: event.target.value
+      }
+    })
+  }
+
+  byType = value => {
+    this.setState({
+      query: POKEMONS_BY_TYPE,
+      resultAdapter: (data) => data.pokemonsByType,
+      search: {
+        type: value
+      }
+    })
+  }
+
+
+  updateSearch(field, query) {
+    return event => this.setState({
+      query: query,
+      search: {
+        [field]: event.target.value
+      }
+    })
+  }
+
+  loadMore(after) {
+    return event => this.setState({search: {
+      ...this.state.search,
+      after
+    }})
+  }
+
+  pokemonTypes () {
+    return ['Normal', 'Fire',
+    'Water',	'Grass',
+    'Electric',	'Ice',
+    'Fighting',	'Poison',
+    'Ground',	'Flying',
+    'Psychic',	'Bug',
+    'Rock',	'Ghost',
+    'Dark',	'Dragon',
+    'Steel',	'Fairy' ].map(t => <AutoComplete.Option key={t}>{t}</AutoComplete.Option>)
+  }
+
+  render() {
+    return(
+      <Query query={this.state.query} variables={{...this.state.search}} fetchPolicy="network-only">
+        {result => {
+          const { loading, error, data } = result;
+
+          console.log('data', data);
+
+          const pokemons = !!data ? this.state.resultAdapter(data) : [];
+
+          console.log('pokemons', pokemons);
+
+          const dataSource = (!!pokemons && !!pokemons.edges) ? pokemons.edges : []; 
+          
+          let loadMore = ''
+          if (!!pokemons && !!pokemons.pageInfo && pokemons.pageInfo.hasNextPage) {
+            loadMore =  <Form.Item>
+                          <Button type="primary" icon="reload" onClick={this.loadMore(pokemons.pageInfo.endCursor)}>
+                            NextPage
+                          </Button>
+                        </Form.Item>
+          } else {
+            loadMore = 
+              <Form.Item>
+                <Button type="primary" onClick={this.loadMore('')}>
+                  Reset
+                </Button>
+              </Form.Item>
+          }
+
+          return (
+            <div>
+              <Form
+                layout="inline"
+                className="query-form"
+                style={{ marginBottom: 16 }}
+              >
+              <Form.Item label="Search by name">
+                <Input placeholder="ex: pikatchu" value={this.state.search.name} onChange={this.byName()}/>
+              </Form.Item>
+              <Form.Item label="Filter by type">
+                <AutoComplete placeholder="ex: fire" value={this.state.search.type} onSelect={this.byType}>
+                  {this.pokemonTypes()}
+                </AutoComplete>
+              </Form.Item>
+              {loadMore}
+              </Form>
+              <Table
+                rowKey="cursor"
+                loading={loading}
+                dataSource={dataSource}
+                columns={columns}
+              />
+            </div>
+          )
+        }
+      }
+      </Query>
     )
   }
 }
-
-export default PokemonTable;

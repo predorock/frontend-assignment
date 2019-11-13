@@ -1,0 +1,5 @@
+@import 'antd/dist/antd.css';
+.qury-form .ant-form-item {
+    margin-right: 16px;
+    margin-bottom: 8px;
+}
